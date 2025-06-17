@@ -1,123 +1,189 @@
-// src/services/auth.ts
-import type { User, LoginCredentials, RegisterData } from '../types/auth';
-import { logger } from '../utils/logger';
-import { apiService } from './api';
+// src/services/auth.ts - Updated with Mock Data
+import { logger } from '@/utils/logger';
+import type { User, LoginCredentials, RegisterData } from '@/types';
 
 export class AuthService {
-  /**
-   * Login user
-   */
-async login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
-  logger.info('Attempting login', { email: credentials.email });
-  
-  // Mock login for demo accounts
-  if (import.meta.env.DEV && (
-    credentials.email === 'demo@athlete.com' || 
-    credentials.email === 'demo@coach.com'
-  )) {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: credentials.email === 'demo@coach.com' ? 'coach-1' : 'athlete-1',
-      email: credentials.email,
-      name: credentials.email === 'demo@coach.com' ? 'Demo Coach' : 'Demo Athlete',
-      role: credentials.email === 'demo@coach.com' ? 'coach' : 'athlete',
-      createdAt: '2024-01-01T00:00:00Z',
-    };
-    
-    const mockToken = 'mock-jwt-token-' + Date.now();
-    localStorage.setItem('auth_token', mockToken);
-    
-    logger.info('Mock login successful', { userId: mockUser.id });
-    return { user: mockUser, token: mockToken };
-  }
-  
-  // Regular API call for real accounts
-  const response = await apiService.post<{ user: User; token: string }>('/api/auth/login', {
-    email: credentials.email,
-    password: credentials.password,
-    rememberMe: credentials.rememberMe,
-  });
-  
-  if (!response.success || !response.data) {
-    throw new Error(response.error || 'Login failed');
-  }
-  
-  localStorage.setItem('auth_token', response.data.token);
-  logger.info('Login successful', { userId: response.data.user.id });
-  return response.data;
-}
+  private mockUsers: User[] = [
+    {
+      id: 'athlete-1',
+      email: 'demo@athlete.com',
+      name: 'Sarah Johnson',
+      role: 'athlete',
+      profile: {
+        sex: 'F',
+        age: 28,
+        bodyweight: 68.5,
+        equipment: 'Raw',
+        experience: 'Intermediate',
+        goals: 'Improve my total and compete at nationals this year.',
+      },
+      createdAt: '2024-01-15T10:00:00Z',
+      lastLoginAt: '2024-06-17T08:30:00Z',
+    },
+    {
+      id: 'athlete-2',
+      email: 'athlete2@demo.com',
+      name: 'Marcus Chen',
+      role: 'athlete',
+      profile: {
+        sex: 'M',
+        age: 32,
+        bodyweight: 82.1,
+        equipment: 'Wraps',
+        experience: 'Advanced',
+        goals: 'Break the 600kg total barrier.',
+      },
+      createdAt: '2024-02-01T14:20:00Z',
+      lastLoginAt: '2024-06-16T19:45:00Z',
+    },
+    {
+      id: 'coach-1',
+      email: 'demo@coach.com',
+      name: 'Coach Elena Rodriguez',
+      role: 'coach',
+      createdAt: '2023-09-10T12:00:00Z',
+      lastLoginAt: '2024-06-17T07:15:00Z',
+    },
+  ];
 
   /**
-   * Register new user
+   * Mock login with predefined demo accounts
    */
-  async register(data: RegisterData): Promise<{ user: User; token: string }> {
-    logger.info('Attempting registration', { email: data.email });
+  async login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
+    logger.info('Attempting mock login', { email: credentials.email });
     
-    const response = await apiService.post<{ user: User; token: string }>('/api/auth/register', {
-      name: data.name,
-      email: data.email,
-      password: data.password,
-      role: data.role || 'athlete',
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Find user by email
+    const user = this.mockUsers.find(u => u.email === credentials.email);
+    
+    if (!user) {
+      throw new Error('Invalid email or password');
+    }
+    
+    // For demo purposes, accept any password for demo accounts
+    // In real app, you'd verify the password hash
+    if (credentials.password.length < 3) {
+      throw new Error('Invalid email or password');
+    }
+    
+    // Update last login
+    user.lastLoginAt = new Date().toISOString();
+    
+    const mockToken = `mock-jwt-${user.id}-${Date.now()}`;
+    localStorage.setItem('auth_token', mockToken);
+    localStorage.setItem('current_user', JSON.stringify(user));
+    
+    logger.info('Mock login successful', { 
+      userId: user.id, 
+      role: user.role,
+      name: user.name 
     });
     
-    if (!response.success || !response.data) {
-      throw new Error(response.error || 'Registration failed');
-    }
-    
-    // Store token
-    localStorage.setItem('auth_token', response.data.token);
-    
-    logger.info('Registration successful', { userId: response.data.user.id });
-    return response.data;
+    return { user, token: mockToken };
   }
 
   /**
-   * Logout user
+   * Mock registration
    */
-  async logout(): Promise<void> {
-    try {
-      await apiService.post('/api/auth/logout');
-    } catch (error) {
-      logger.warn('Logout API call failed, proceeding with local cleanup', error);
+  async register(data: RegisterData): Promise<{ user: User; token: string }> {
+    logger.info('Attempting mock registration', { email: data.email });
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Check if user already exists
+    const existingUser = this.mockUsers.find(u => u.email === data.email);
+    if (existingUser) {
+      throw new Error('An account with this email already exists');
     }
     
+    // Create new user
+    const newUser: User = {
+      id: `${data.role}-${Date.now()}`,
+      email: data.email,
+      name: data.name,
+      role: data.role || 'athlete',
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    
+    // Add to mock database
+    this.mockUsers.push(newUser);
+    
+    const mockToken = `mock-jwt-${newUser.id}-${Date.now()}`;
+    localStorage.setItem('auth_token', mockToken);
+    localStorage.setItem('current_user', JSON.stringify(newUser));
+    
+    logger.info('Mock registration successful', { 
+      userId: newUser.id, 
+      role: newUser.role 
+    });
+    
+    return { user: newUser, token: mockToken };
+  }
+
+  /**
+   * Mock logout
+   */
+  async logout(): Promise<void> {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('current_user');
     logger.info('User logged out');
   }
 
   /**
-   * Get current user profile
+   * Get current user from localStorage
    */
   async getCurrentUser(): Promise<User> {
-    const response = await apiService.get<User>('/api/auth/me');
-    
-    if (!response.success || !response.data) {
-      throw new Error(response.error || 'Failed to get user profile');
+    const userJson = localStorage.getItem('current_user');
+    if (!userJson) {
+      throw new Error('No authenticated user found');
     }
     
-    return response.data;
+    try {
+      const user = JSON.parse(userJson) as User;
+      logger.debug('Retrieved current user from storage', { userId: user.id });
+      return user;
+    } catch (error) {
+      logger.error('Failed to parse stored user data', error);
+      throw new Error('Invalid user session');
+    }
   }
 
   /**
    * Update user profile
    */
   async updateProfile(updates: Partial<User>): Promise<User> {
-    const response = await apiService.put<User>('/api/auth/profile', updates);
+    logger.info('Updating user profile', { updates });
     
-    if (!response.success || !response.data) {
-      throw new Error(response.error || 'Failed to update profile');
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const currentUser = await this.getCurrentUser();
+    const updatedUser = { ...currentUser, ...updates };
+    
+    // Update in mock database
+    const userIndex = this.mockUsers.findIndex(u => u.id === currentUser.id);
+    if (userIndex !== -1) {
+      this.mockUsers[userIndex] = updatedUser;
     }
     
-    return response.data;
+    // Update localStorage
+    localStorage.setItem('current_user', JSON.stringify(updatedUser));
+    
+    logger.info('Profile updated successfully', { userId: updatedUser.id });
+    return updatedUser;
   }
 
   /**
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
+    const user = localStorage.getItem('current_user');
+    return !!(token && user);
   }
 
   /**
@@ -128,32 +194,38 @@ async login(credentials: LoginCredentials): Promise<{ user: User; token: string 
   }
 
   /**
-   * Request password reset
+   * Request password reset (mock)
    */
   async requestPasswordReset(email: string): Promise<void> {
-    const response = await apiService.post('/api/auth/forgot-password', { email });
+    logger.info('Mock password reset requested', { email });
     
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to request password reset');
-    }
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 800));
     
-    logger.info('Password reset requested', { email });
+    // In a real app, this would send an email
+    logger.info('Password reset email sent (mock)', { email });
   }
 
   /**
-   * Reset password with token
+   * Reset password with token (mock)
    */
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const response = await apiService.post('/api/auth/reset-password', {
-      token,
-      password: newPassword,
-    });
+    logger.info('Mock password reset', { token });
     
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to reset password');
-    }
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 800));
     
-    logger.info('Password reset successful');
+    logger.info('Password reset successful (mock)');
+  }
+
+  /**
+   * Get demo account credentials for testing
+   */
+  getDemoAccounts() {
+    return [
+      { email: 'demo@athlete.com', password: 'demo123', role: 'athlete' },
+      { email: 'demo@coach.com', password: 'demo123', role: 'coach' },
+    ];
   }
 }
 

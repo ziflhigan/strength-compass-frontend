@@ -1,8 +1,8 @@
-// src/services/api.ts
-import axios, { type AxiosInstance, type AxiosResponse, type AxiosError } from 'axios';
-import { logger } from '../utils/logger';
-import { APP_CONFIG } from '../utils/constants';
-import type { ApiResponse, ApiError } from '../types/api';
+// src/services/api.ts - Updated to handle mock vs real API calls
+import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+import { logger } from '@/utils/logger';
+import { APP_CONFIG } from '@/utils/constants';
+import type { ApiResponse, ApiError } from '@/types/api';
 
 class ApiService {
   private client: AxiosInstance;
@@ -59,8 +59,8 @@ class ApiService {
   }
 
   private handleApiError(error: AxiosError): void {
-    if (error.response?.status === 401) {
-      // Handle unauthorized - redirect to login
+    // Don't redirect on auth errors for mock data
+    if (error.response?.status === 401 && !this.isMockEndpoint(error.config?.url || '')) {
       logger.warn('Unauthorized access - clearing auth token');
       localStorage.removeItem('auth_token');
       window.location.href = '/login';
@@ -74,6 +74,12 @@ class ApiService {
     });
   }
 
+  private isMockEndpoint(url: string): boolean {
+    // Add endpoints that should use mock data instead of real API
+    const mockEndpoints = ['/api/auth/', '/api/meets/', '/api/coach/'];
+    return mockEndpoints.some(endpoint => url.includes(endpoint));
+  }
+
   private formatError(error: AxiosError): ApiError {
     const response = error.response?.data as any;
     
@@ -85,7 +91,7 @@ class ApiService {
     };
   }
 
-  // Generic HTTP methods
+  // Generic HTTP methods - these will work for the ML prediction API
   async get<T>(url: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
     const response = await this.client.get(url, { params });
     return response.data;
